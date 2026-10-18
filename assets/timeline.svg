@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="380" viewBox="0 0 1280 380" role="img" aria-label="Store rule changes in 2026 and early 2027">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1328"/>
+      <stop offset="1" stop-color="#16123A"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3A4680"/>
+      <stop offset="0.78" stop-color="#8FA8FF"/>
+      <stop offset="0.78" stop-color="#8FA8FF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#8FA8FF" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="380" rx="24" fill="url(#bg)"/>
+  <g font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <text x="48" y="58" font-size="24" font-weight="800" fill="#FFFFFF">What changed in 2026</text>
+    <g font-size="13" font-weight="600">
+      <circle cx="958" cy="52" r="7" fill="#E6EBFF"/><text x="972" y="57" fill="#C9D3FF">Apple</text>
+      <circle cx="1036" cy="52" r="7" fill="#22C55E"/><text x="1050" y="57" fill="#C9D3FF">Google Play</text>
+      <rect x="1146" y="45" width="14" height="14" rx="7" fill="none" stroke="#8FA8FF" stroke-width="2" stroke-dasharray="3 2"/><text x="1166" y="57" fill="#C9D3FF">Upcoming</text>
+    </g>
+
+    <rect x="48" y="188" width="1184" height="4" rx="2" fill="url(#line)"/>
+    <text x="992" y="214" font-size="12" font-weight="700" fill="#8FA8FF" letter-spacing="1">TODAY</text>
+    <rect x="1008" y="176" width="2" height="28" fill="#8FA8FF"/>
+
+    <!-- above the line: Apple -->
+    <g font-size="13">
+      <g transform="translate(70 0)">
+        <circle cy="190" r="8" fill="#E6EBFF"/>
+        <rect x="-1" y="136" width="2" height="46" fill="#E6EBFF" fill-opacity="0.4"/>
+        <text x="-10" y="90" font-weight="700" fill="#FFFFFF">Feb 6</text>
+        <text x="-10" y="108" fill="#B7C0E8">1.2 covers</text>
+        <text x="-10" y="124" fill="#B7C0E8">anonymous chat</text>
+      </g>
+      <g transform="translate(300 0)">
+        <circle cy="190" r="8" fill="#E6EBFF"/>
+        <rect x="-1" y="136" width="2" height="46" fill="#E6EBFF" fill-opacity="0.4"/>
+        <text x="-10" y="90" font-weight="700" fill="#FFFFFF">Jun 8</text>
+        <text x="-10" y="108" fill="#B7C0E8">4.3 spam rewrite,</text>
+        <text x="-10" y="124" fill="#B7C0E8">live apps removable</text>
+      </g>
+      <g transform="translate(470 0)">
+        <circle cy="190" r="8" fill="#E6EBFF"/>
+        <rect x="-1" y="136" width="2" height="46" fill="#E6EBFF" fill-opacity="0.4"/>
+        <text x="-10" y="90" font-weight="700" fill="#FFFFFF">Jul–Sep</text>
+        <text x="-10" y="108" fill="#B7C0E8">age rating: social</text>
+        <text x="-10" y="124" fill="#B7C0E8">media questions</text>
+      </g>
+      <g transform="translate(960 0)">
+        <circle cy="190" r="10" fill="#F43F5E"/>
+        <rect x="-1" y="136" width="2" height="46" fill="#F43F5E" fill-opacity="0.6"/>
+        <text x="-140" y="90" font-weight="700" fill="#FFC2CD">Oct 16 · new 2.5.19</text>
+        <text x="-140" y="108" fill="#FF9DB0">hidden features = removal</text>
+        <text x="-140" y="124" fill="#FF9DB0">1.2 AI intimate imagery</text>
+      </g>
+      <g transform="translate(1180 0)">
+        <circle cy="190" r="8" fill="none" stroke="#E6EBFF" stroke-width="2" stroke-dasharray="3 2"/>
+        <rect x="-1" y="136" width="2" height="46" fill="#E6EBFF" fill-opacity="0.25"/>
+        <text x="-96" y="90" font-weight="700" fill="#FFFFFF">Apr 2027</text>
+        <text x="-96" y="108" fill="#B7C0E8">iOS 27 SDK,</text>
+        <text x="-96" y="124" fill="#B7C0E8">iPhone Duo shots</text>
+      </g>
+    </g>
+
+    <!-- below the line: Google -->
+    <g font-size="13">
+      <g transform="translate(190 0)">
+        <circle cy="190" r="8" fill="#22C55E"/>
+        <rect x="-1" y="198" width="2" height="62" fill="#22C55E" fill-opacity="0.4"/>
+        <text x="-10" y="282" font-weight="700" fill="#FFFFFF">Apr 15</text>
+        <text x="-10" y="300" fill="#B7C0E8">contacts picker,</text>
+        <text x="-10" y="316" fill="#B7C0E8">location button</text>
+      </g>
+      <g transform="translate(640 0)">
+        <circle cy="190" r="8" fill="#22C55E"/>
+        <rect x="-1" y="198" width="2" height="62" fill="#22C55E" fill-opacity="0.4"/>
+        <text x="-10" y="282" font-weight="700" fill="#FFFFFF">Aug 26</text>
+        <text x="-10" y="300" fill="#B7C0E8">anonymous chat</text>
+        <text x="-10" y="316" fill="#B7C0E8">child safety</text>
+      </g>
+      <g transform="translate(790 0)">
+        <circle cy="190" r="10" fill="#F43F5E"/>
+        <rect x="-1" y="198" width="2" height="62" fill="#F43F5E" fill-opacity="0.6"/>
+        <text x="-10" y="282" font-weight="700" fill="#FFC2CD">Aug 31</text>
+        <text x="-10" y="300" fill="#FF9DB0">targetSdk 36,</text>
+        <text x="-10" y="316" fill="#FF9DB0">Billing Library 8</text>
+      </g>
+      <g transform="translate(900 0)">
+        <circle cy="190" r="8" fill="#22C55E"/>
+        <rect x="-1" y="198" width="2" height="62" fill="#22C55E" fill-opacity="0.4"/>
+        <text x="-10" y="282" font-weight="700" fill="#FFFFFF">Sep 30</text>
+        <text x="-10" y="300" fill="#B7C0E8">developer</text>
+        <text x="-10" y="316" fill="#B7C0E8">verification</text>
+      </g>
+      <g transform="translate(1100 0)">
+        <circle cy="190" r="8" fill="none" stroke="#22C55E" stroke-width="2" stroke-dasharray="3 2"/>
+        <rect x="-1" y="198" width="2" height="62" fill="#22C55E" fill-opacity="0.25"/>
+        <text x="-40" y="282" font-weight="700" fill="#FFFFFF">Jan 27, 2027</text>
+        <text x="-40" y="300" fill="#B7C0E8">call log, contacts,</text>
+        <text x="-40" y="316" fill="#B7C0E8">FGS geofencing</text>
+      </g>
+    </g>
+  </g>
+</svg>

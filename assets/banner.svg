@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="store-compliance: audit mobile repos against App Store and Google Play rules">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1020"/>
+      <stop offset="0.55" stop-color="#141B34"/>
+      <stop offset="1" stop-color="#1B1240"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.82" cy="0.25" r="0.5">
+      <stop offset="0" stop-color="#4F7CFF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#4F7CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.95" cy="0.95" r="0.45">
+      <stop offset="0" stop-color="#22C55E" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#22C55E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#B9C6FF"/>
+    </linearGradient>
+    <linearGradient id="scan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4F7CFF" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#4F7CFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#4F7CFF" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#FFFFFF" stroke-opacity="0.04"/>
+    </pattern>
+    <clipPath id="screen"><rect x="905" y="78" width="210" height="300" rx="22"/></clipPath>
+  </defs>
+
+  <rect width="1280" height="420" fill="url(#bg)"/>
+  <rect width="1280" height="420" fill="url(#grid)"/>
+  <rect width="1280" height="420" fill="url(#glowA)"/>
+  <rect width="1280" height="420" fill="url(#glowB)"/>
+
+  <!-- text block -->
+  <g font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <g transform="translate(72 92)">
+      <rect width="250" height="32" rx="16" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.14"/>
+      <circle cx="18" cy="16" r="5" fill="#22C55E"/>
+      <text x="32" y="21" font-size="14" font-weight="600" fill="#C9D3FF" letter-spacing="0.4">Claude Code skill · rules 2026-10</text>
+    </g>
+    <text x="70" y="196" font-size="76" font-weight="800" fill="url(#title)" letter-spacing="-2">store-compliance</text>
+    <text x="72" y="244" font-size="26" font-weight="500" fill="#C9D3FF">Find what gets your app rejected before the reviewer does.</text>
+    <g font-size="16" font-weight="600" transform="translate(72 290)">
+      <rect width="218" height="36" rx="10" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <text x="16" y="23" fill="#E6EBFF">App Review Guidelines</text>
+      <rect x="230" width="212" height="36" rx="10" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <text x="246" y="23" fill="#E6EBFF">Play Developer Policy</text>
+      <rect x="454" width="248" height="36" rx="10" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <text x="470" y="23" fill="#E6EBFF">Flutter · React Native · Native</text>
+    </g>
+  </g>
+
+  <!-- phone with scan -->
+  <g>
+    <rect x="893" y="64" width="234" height="328" rx="34" fill="#0E1328" stroke="#3A4680" stroke-width="2"/>
+    <rect x="905" y="78" width="210" height="300" rx="22" fill="#151C3A"/>
+    <rect x="975" y="86" width="70" height="8" rx="4" fill="#0E1328"/>
+    <g clip-path="url(#screen)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11">
+      <g transform="translate(921 116)">
+        <rect width="178" height="40" rx="9" fill="#2A1620" stroke="#F43F5E" stroke-opacity="0.6"/>
+        <circle cx="16" cy="20" r="6" fill="#F43F5E"/>
+        <text x="30" y="17" fill="#FFC2CD" font-weight="700">2.5.19</text>
+        <text x="30" y="31" fill="#FF9DB0">review-mode switch</text>
+        <rect y="50" width="178" height="40" rx="9" fill="#2A1620" stroke="#F43F5E" stroke-opacity="0.6"/>
+        <circle cx="16" cy="70" r="6" fill="#F43F5E"/>
+        <text x="30" y="67" fill="#FFC2CD" font-weight="700">PBL &lt; 8</text>
+        <text x="30" y="81" fill="#FF9DB0">updates blocked</text>
+        <rect y="100" width="178" height="40" rx="9" fill="#2A2410" stroke="#F59E0B" stroke-opacity="0.6"/>
+        <circle cx="16" cy="120" r="6" fill="#F59E0B"/>
+        <text x="30" y="117" fill="#FFE2A8" font-weight="700">5.1.2(i)</text>
+        <text x="30" y="131" fill="#FCD38A">AI consent missing</text>
+        <rect y="150" width="178" height="40" rx="9" fill="#10233A" stroke="#4F7CFF" stroke-opacity="0.6"/>
+        <circle cx="16" cy="170" r="6" fill="#4F7CFF"/>
+        <text x="30" y="167" fill="#C9D3FF" font-weight="700">READ_MEDIA_*</text>
+        <text x="30" y="181" fill="#A9B8FF">use Photo Picker</text>
+        <rect y="200" width="178" height="40" rx="9" fill="#0F2A1C" stroke="#22C55E" stroke-opacity="0.6"/>
+        <path d="M10 220l4 4 8-9" fill="none" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="30" y="217" fill="#BFF5D2" font-weight="700">targetSdk 36</text>
+        <text x="30" y="231" fill="#8EE6B0">compliant</text>
+      </g>
+      <rect x="905" y="150" width="210" height="70" fill="url(#scan)">
+        <animate attributeName="y" values="70;330;70" dur="5s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+
+  <!-- magnifier -->
+  <g transform="translate(1110 300)">
+    <circle r="46" fill="#4F7CFF" fill-opacity="0.12" stroke="#8FA8FF" stroke-width="6"/>
+    <path d="M33 33l38 38" stroke="#8FA8FF" stroke-width="12" stroke-linecap="round"/>
+    <path d="M-16 0l10 10 22-24" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
