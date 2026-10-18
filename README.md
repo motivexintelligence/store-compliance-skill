@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg?v=2" alt="store-compliance: find what gets your app rejected before the reviewer does" width="100%">
+  <img src="assets/banner.svg?v=2" alt="store-compliance" width="100%">
 </p>
 
 <p align="center">
