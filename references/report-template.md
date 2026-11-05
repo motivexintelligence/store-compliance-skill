@@ -8,16 +8,18 @@ write them.
 # Store compliance: <App name> (<version>)
 
 <repo path> · <git HEAD short sha and date> · scanned <YYYY-MM-DD> · rules as of <rules-as-of>
-Platforms: iOS, Android · Stack: <Flutter 3.x / Expo SDK nn / native>
+Platforms: iOS, Android, HarmonyOS · Stack: <Flutter 3.x / Expo SDK nn / native / ArkTS>
 
 ## Summary
 
-| Level | Apple | Google | Both |
-|---|---|---|---|
-| 🔴 Critical | n | n | n |
-| 🟡 Important | n | n | n |
-| 🔵 Suggestion | n | n | n |
-| ☑️ Manual check | n | n | n |
+| Level | Apple | Google | Huawei | Several stores |
+|---|---|---|---|---|
+| 🔴 Critical | n | n | n | n |
+| 🟡 Important | n | n | n | n |
+| 🔵 Suggestion | n | n | n | n |
+| ☑️ Manual check | n | n | n | n |
+
+Drop the Huawei column when the app does not ship to AppGallery.
 
 **Top risks**
 1. <one line: what, which store, what happens>
@@ -26,7 +28,7 @@ Platforms: iOS, Android · Stack: <Flutter 3.x / Expo SDK nn / native>
 
 ## 🔴 Critical
 
-### 1. <short title> · <Apple 2.5.19 / Play Billing Library 8>
+### 1. <short title> · <Apple 2.5.19 / Play Billing Library 8 / AppGallery 3.16>
 - **What:** one sentence.
 - **Evidence:** `lib/foo/bar.dart:42`, `ios/Runner/Info.plist:31`
 - **Rule:** guideline or policy, with the date when it is a 2026 change.
@@ -41,7 +43,7 @@ Platforms: iOS, Android · Stack: <Flutter 3.x / Expo SDK nn / native>
 ## 🔵 Suggestions
 …
 
-## ☑️ Manual checks (App Store Connect / Play Console)
+## ☑️ Manual checks (App Store Connect / Play Console / AppGallery Connect)
 - [ ] <item> (why it applies to this app)
 
 ## Rule changes since the references

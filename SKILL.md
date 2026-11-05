@@ -1,12 +1,12 @@
 ---
 name: store-compliance
-description: Audits mobile app repositories (Flutter, React Native/Expo, native iOS/Android) against the current Apple App Review Guidelines and Google Play Developer Policies, and reports each violation with evidence, the store risk and a concrete fix. Use when the user asks whether an app will pass App Store or Play review, wants a pre-submission or compliance audit, asks about new or changed review guidelines or policy deadlines, received a rejection, or wants to scan one or many mobile repos for store-policy risks (also in Turkish, e.g. "mağaza uyumu", "review guideline tarama", "reddedilme riski").
+description: Audits mobile app repositories (Flutter, React Native/Expo, native iOS/Android, HarmonyOS/ArkTS) against the current Apple App Review Guidelines, Google Play Developer Policies and Huawei AppGallery review rules, and reports each violation with evidence, the store risk and a concrete fix. Use when the user asks whether an app will pass App Store, Play or AppGallery review, wants a pre-submission or compliance audit, asks about new or changed review guidelines or policy deadlines, received a rejection, or wants to scan one or many mobile repos for store-policy risks (also in Turkish, e.g. "mağaza uyumu", "review guideline tarama", "reddedilme riski").
 license: MIT
 compatibility: Works with any agent that reads Agent Skills (SKILL.md). Needs python3 (3.8+). gh only for scanning a GitHub repo that is not cloned. Web access to check for newer store rules.
 allowed-tools: Read Grep Glob
 metadata:
-  version: "1.0.0"
-  rules-as-of: "2026-10-18"
+  version: "1.1.0"
+  rules-as-of: "2026-11-05"
 ---
 
 # store-compliance
@@ -16,7 +16,8 @@ invoked by name (a path, `owner/repo`, a folder of repos or `all`, and
 `--lang`).
 
 Scan mobile repos for things that get an app rejected, removed or blocked from
-updating on the App Store and Google Play. Every finding must carry evidence
+updating on the App Store, Google Play and Huawei AppGallery (HarmonyOS apps and
+Android APKs). Every finding must carry evidence
 (`file:line`), the guideline or policy it breaks, what the store does about it,
 and how to fix it.
 
@@ -25,7 +26,7 @@ have read the cited code.
 
 ## 0. Check the rules are current
 
-The rules in `references/` are dated (`rules-as-of` above). Both stores change
+The rules in `references/` are dated (`rules-as-of` above). The stores change
 them several times a year.
 
 - If `rules-as-of` is more than 45 days old, or the user mentions a change you
@@ -33,6 +34,7 @@ them several times a year.
   newer in the report under "Rule changes since the references":
   - https://developer.apple.com/news/ (entries titled "Updated App Review Guidelines…")
   - https://support.google.com/googleplay/android-developer/table/12921780 (Play policy deadlines)
+  - https://developer.huawei.com/consumer/cn/doc/app/50104 (AppGallery 应用审核指南, check the version number)
 - Do not silently edit the references. Tell the user what changed and offer to
   update them.
 
@@ -63,12 +65,17 @@ It is stdlib-only and read-only. The JSON holds, per app:
 - `facts`: stack, platforms, SDK categories (ads, tracking, login, IAP, AI,
   UGC, remote config, code push…), Info.plist purpose strings, privacy manifest,
   Android permissions, resolved `targetSdk`/`minSdk`, Play Billing version,
-  background modes.
-- `findings`: `id`, `level` (CRITICAL / IMPORTANT / SUGGESTION), `refs`,
-  `title`, `evidence`.
+  Android Gradle Plugin, background modes, and for HarmonyOS `facts.harmonyos`
+  (bundleName, SDK levels, declared permissions, modules).
+- `findings`: `id`, `platform` (`ios`, `android`, `harmonyos`, `appgallery`
+  or `both` for cross-store rules), `level` (CRITICAL / IMPORTANT /
+  SUGGESTION), `refs`, `title`, `evidence`.
 
-What the IDs mean, how to verify each one and the standard fix are in
-`references/apple.md` and `references/google.md` (search for the ID).
+ID prefixes: `X-` cross-store, `IOS-`, `AND-`, `EXPO-`, `HOS-` (HarmonyOS
+project), `AGC-` (AppGallery rules), `HMS-` (Android APK on AppGallery). What
+each ID means, how to verify it and the standard fix are in
+`references/apple.md`, `references/google.md` and `references/huawei.md`
+(search for the ID). Read only the files for the platforms the app ships to.
 
 ## 3. Verify every finding
 
@@ -120,9 +127,13 @@ numbers stay as the stores write them. Use `references/report-template.md`.
   unless the caller asked for more (for example a per-finding verdict list).
   The details belong in the file.
 - Order: CRITICAL, then IMPORTANT, then SUGGESTION, then Manual checks.
-- Platform column: **Apple** or **Google** when only that store's rules are
-  broken, **Both** when each store has its own rule against it (account
-  deletion, third-party AI consent, UGC moderation).
+- Platform column: **Apple**, **Google** or **Huawei** when only that store's
+  rules are broken. Name every store when each has its own rule against it
+  (account deletion, third-party AI consent, UGC moderation), for example
+  **Apple · Google · Huawei**. `both` findings name only the stores the app
+  ships to.
+- HarmonyOS apps ship only in mainland China, so the Chinese AppGallery rules
+  (V52), ICP filing and the personal information rules always apply to them.
 - A downgraded finding keeps a one-line "Downgraded from X because …" note.
 - Every finding: **what** (one sentence), **evidence** (`file:line`),
   **rule** (guideline/policy + date if new), **risk** (what the store does:
@@ -149,8 +160,12 @@ re-run the scanner afterwards to show the finding is gone.
 
 - Native Android projects can also be checked with Google's
   `play-policy-insights` skill (github.com/android/skills, `play/`), which goes
-  deeper into Data safety for Java/Kotlin. This skill covers both stores and
-  cross-platform stacks.
-- The scanner cannot see App Store Connect or Play Console. Store listing text,
-  screenshots, age-rating answers, Data safety and App Privacy forms are
-  always in **Manual checks**.
+  deeper into Data safety for Java/Kotlin. This skill covers all three stores
+  and cross-platform stacks.
+- The scanner cannot see App Store Connect, Play Console or AppGallery Connect.
+  Store listing text, screenshots, age-rating answers, Data safety and App
+  Privacy forms, the AppGallery privacy statement and ICP filing are always in
+  **Manual checks**.
+- Taro keeps its HarmonyOS project outside the repo, and uni-app may not commit
+  `harmony-configs/entry`. If `facts.platforms` lacks `harmonyos` for such an
+  app, say the HarmonyOS manifest was not scanned.
