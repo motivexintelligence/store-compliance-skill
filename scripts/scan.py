@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static fact gatherer for App Store and Google Play compliance audits.
+"""Static fact gatherer for App Store, Google Play and AppGallery compliance audits.
 
 Usage:
   scan.py <repo-or-app-dir> [--json out.json]   scan every mobile app in a repo
@@ -7,7 +7,8 @@ Usage:
 
 Stdlib only, read-only. Each finding is a lead the auditor verifies by reading
 the cited code. It is never a verdict on its own.
-Supports Flutter, React Native / Expo and native Android/iOS projects.
+Supports Flutter, React Native / Expo, native Android/iOS and HarmonyOS (ArkTS,
+Flutter for OpenHarmony, React Native for OpenHarmony, uni-app) projects.
 """
 import json
 import os
@@ -23,7 +24,7 @@ SKIP_DIRS = {
     "Flutter", "test", "tests", "integration_test", "androidTest", "__tests__", "testing",
     "tool", "tools", "scripts", "web", "macos", "linux", "windows", "docs", "example",
 }
-CODE_EXT = {".dart", ".kt", ".java", ".swift", ".m", ".mm", ".ts", ".tsx", ".js", ".jsx"}
+CODE_EXT = {".dart", ".kt", ".java", ".swift", ".m", ".mm", ".ts", ".tsx", ".js", ".jsx", ".ets"}
 UI_EXT = CODE_EXT | {".arb", ".strings", ".xml", ".json"}
 TEXT_EXT = UI_EXT | {".plist", ".yaml", ".yml"}
 GENERATED = (".g.dart", ".freezed.dart", ".mocks.dart", ".gr.dart", ".config.dart")
@@ -191,6 +192,43 @@ ANDROID_RESTRICTED = {
     "RECORD_AUDIO": ("SUGGESTION", "Declare audio in Data safety, prominent disclosure if not obvious"),
 }
 
+# HarmonyOS project folders inside cross-platform repos
+HARMONY_DIRS = ("ohos", "harmony", "harmony-configs")
+
+# HarmonyOS user_grant / manual_settings permissions: reason and usedScene are mandatory
+HOS_USER_GRANT = {
+    "ACCESS_BLUETOOTH", "MEDIA_LOCATION", "APP_TRACKING_CONSENT", "ACTIVITY_MOTION", "CAMERA", "DISTRIBUTED_DATASYNC",
+    "LOCATION_IN_BACKGROUND", "LOCATION", "APPROXIMATELY_LOCATION", "MICROPHONE", "READ_CALENDAR", "WRITE_CALENDAR",
+    "READ_HEALTH_DATA", "ACCESS_NEARLINK", "READ_WRITE_DOWNLOAD_DIRECTORY", "READ_WRITE_DOCUMENTS_DIRECTORY",
+    "CUSTOM_SCREEN_CAPTURE", "READ_IMAGEVIDEO", "WRITE_IMAGEVIDEO", "READ_AUDIO", "WRITE_AUDIO", "READ_CONTACTS",
+    "WRITE_CONTACTS", "READ_PASTEBOARD", "READ_WHOLE_CALENDAR", "WRITE_WHOLE_CALENDAR", "FLOAT_VIEW",
+    "READ_WRITE_DESKTOP_DIRECTORY", "HOOK_KEY_EVENT", "CUSTOM_SCREEN_RECORDING", "CONTROL_DEVICE",
+}
+
+# HarmonyOS restricted (ACL) permissions: name -> what to use instead
+HOS_RESTRICTED = {
+    "READ_IMAGEVIDEO": "PhotoViewPicker", "WRITE_IMAGEVIDEO": "the SaveButton security control",
+    "SHORT_TERM_WRITE_IMAGEVIDEO": "the SaveButton security control", "READ_AUDIO": "AudioViewPicker",
+    "WRITE_AUDIO": "AudioViewPicker", "READ_CONTACTS": "the Contact Picker", "WRITE_CONTACTS": "the Contacts app",
+    "READ_PASTEBOARD": "the PasteButton security control", "READ_WHOLE_CALENDAR": "READ_CALENDAR",
+    "WRITE_WHOLE_CALENDAR": "WRITE_CALENDAR", "SYSTEM_FLOAT_WINDOW": "picture-in-picture", "FLOAT_VIEW": None,
+    "CUSTOM_SCREEN_RECORDING": None, "HOOK_KEY_EVENT": None, "CONTROL_DEVICE": None,
+    "KEEP_BACKGROUND_RUNNING_SYSTEM": "a normal continuous task", "KEEP_BACKGROUND_RUNNING_SPECIAL_SCENARIO": "a normal continuous task",
+    "GET_WIFI_LOCAL_MAC": "OAID or an app-scoped ID", "GET_ETHERNET_LOCAL_MAC": "OAID or an app-scoped ID",
+    "GET_WIFI_PEERS_MAC": None, "GET_IP_MAC_INFO": None, "PERSISTENT_BLUETOOTH_PEERS_MAC": None, "INPUT_MONITORING": None,
+    "INTERCEPT_INPUT_EVENT": None, "ACCESS_USER_FULL_DISK": None, "READ_WRITE_USER_FILE": None,
+    "ALLOW_EXTERNAL_NATIVE_CODE": None, "SUBSCRIBE_NOTIFICATION": None, "GET_NETWORK_STATS": None, "CHECK_CALL_LOG": None,
+    "MANAGE_CALL_FOR_DEVICES": None, "CUSTOMIZE_SAVE_BUTTON": None, "FILE_ACCESS_PERSIST": None,
+}
+
+# Google Mobile Services dependencies that break on Huawei devices, and their HMS counterparts
+GMS_DEPS = {
+    "firebase_messaging": "HMS Push Kit", "@react-native-firebase/messaging": "HMS Push Kit",
+    "google_sign_in": "HUAWEI ID or email login", "@react-native-google-signin/google-signin": "HUAWEI ID or email login",
+    "google_maps_flutter": "Petal Maps (Map Kit)", "react-native-maps": "Petal Maps (Map Kit)",
+    "in_app_review": "a store link", "in_app_update": "the AppGallery update component", "google_mobile_ads": "Petal Ads",
+}
+
 # ----------------------------------------------------------------- helpers --
 
 def rel(p, root):
@@ -209,6 +247,51 @@ def read(p):
         return ""
 
 
+def json5_loads(text):
+    """Parse the JSON5 subset used by HarmonyOS configs: comments, trailing commas, unquoted keys, single quotes."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            j, buf = i + 1, []
+            while j < n and text[j] != c:
+                if text[j] == "\\" and j + 1 < n:
+                    buf.append(text[j:j + 2])
+                    j += 2
+                    continue
+                buf.append('\\"' if text[j] == '"' else text[j])
+                j += 1
+            out.append('"' + "".join(buf) + '"')
+            i = j + 1
+        elif text.startswith("//", i):
+            i = text.find("\n", i) if text.find("\n", i) != -1 else n
+        elif text.startswith("/*", i):
+            i = text.find("*/", i) + 2 if text.find("*/", i) != -1 else n
+        elif c.isalpha() or c in "_$":
+            m = re.match(r"[A-Za-z_$][\w$]*", text[i:])
+            word = m.group(0)
+            rest = text[i + len(word):].lstrip()
+            out.append(f'"{word}"' if rest.startswith(":") else word)
+            i += len(word)
+        else:
+            out.append(c)
+            i += 1
+    joined = re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+    try:
+        return json.loads(joined)
+    except ValueError:
+        return None
+
+
+def api_level(v):
+    """HarmonyOS SDK version: "5.0.0(12)" -> 12, "26.0.0" -> 26, 12 -> 12."""
+    if v is None:
+        return None
+    s = str(v)
+    m = re.search(r"\((\d+)\)", s) or re.match(r"(\d+)", s)
+    return int(m.group(1)) if m else None
+
+
 def is_generated(name):
     return name.endswith(GENERATED) or re.match(r"app_localizations(_\w+)?\.dart$", name) or name == "strings.g.dart"
 
@@ -223,7 +306,7 @@ def walk(root, exts):
 
 def wanted_json(p):
     """Only translation dictionaries among .json files."""
-    return bool(re.search(r"/(l10n|i18n|locales?|translations|lang)/", p))
+    return bool(re.search(r"/(l10n|i18n|locales?|translations|lang)/|/resources/[\w-]+/element/string\.json$", p))
 
 
 class Corpus:
@@ -361,7 +444,14 @@ def find_app_dirs(root):
         is_flutter = "pubspec.yaml" in fns and has_native and re.search(r"^\s+flutter:\s*$", read(p / "pubspec.yaml"), re.M)
         is_rn = "package.json" in fns and re.search(r'"(react-native|expo)"\s*:', read(p / "package.json")) and (has_native or "app.json" in fns)
         is_android = (p / "app" / "src" / "main" / "AndroidManifest.xml").exists()
-        if is_flutter or is_rn or is_android:
+        is_harmony = (p / "AppScope" / "app.json5").exists() and ((p / "build-profile.json5").exists() or (p / "hvigorfile.ts").exists())
+        has_ohos = any((p / sub / "AppScope" / "app.json5").exists() or (p / sub / "entry" / "src" / "main" / "module.json5").exists()
+                       for sub in HARMONY_DIRS)
+        if not is_flutter and "pubspec.yaml" in fns and has_ohos:
+            is_flutter = re.search(r"^\s+flutter:\s*$", read(p / "pubspec.yaml"), re.M)
+        if not is_rn and "package.json" in fns and has_ohos:
+            is_rn = re.search(r'"(react-native|expo)"\s*:', read(p / "package.json"))
+        if is_flutter or is_rn or is_android or is_harmony:
             found.append(p)
             dns[:] = []
     return found
@@ -415,8 +505,21 @@ class Scan:
         self.android = d / "android" if (d / "android").is_dir() else d
         if self.android == d and not (d / "app" / "src" / "main" / "AndroidManifest.xml").exists():
             self.android = d / "android"  # no native Android project (e.g. managed Expo)
+        self.ohos = next((d / sub for sub in HARMONY_DIRS
+                          if (d / sub / "AppScope" / "app.json5").exists() or (d / sub / "entry" / "src" / "main" / "module.json5").exists()), None)
+        if self.ohos is None and (d / "AppScope" / "app.json5").exists():
+            self.ohos = d
+            if self.facts["stack"] == "native":
+                self.facts["stack"] = "arkts"
+        if self.ohos is not None:
+            for op in self.ohpm_files():
+                pkg = json5_loads(read(op)) or {}
+                for k, v in {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}.items():
+                    self.deps.setdefault(k, "ohpm")
+                    self.locked.setdefault(k, str(v))
         self.facts["platforms"] = [p for p, ok in (("ios", self.ios.is_dir()),
-                                                   ("android", (self.android / "app").is_dir())) if ok]
+                                                   ("android", (self.android / "app").is_dir()),
+                                                   ("harmonyos", self.ohos is not None)) if ok]
         self.corpus = Corpus(d)
         self.facts["source_files"] = sum(1 for p in self.corpus.files if Path(p).suffix in CODE_EXT)
         cats = {
@@ -431,6 +534,15 @@ class Scan:
         self.cat["ads"] = sorted(set(self.cat["ads"]) | {n for n in self.deps if AD_NAME.search(n)})
         self.cat["tracking"] = sorted(set(self.cat["tracking"]) | {n for n in self.deps if "install_referrer" in n or "install-referrer" in n})
         self.facts["sdk_categories"] = {k: v for k, v in self.cat.items() if v}
+
+    def ohpm_files(self):
+        return [Path(dp) / "oh-package.json5" for dp, dns, fns in self.ohos_walk() if "oh-package.json5" in fns]
+
+    def ohos_walk(self):
+        skip = {"oh_modules", "build", "node_modules", ".hvigor", ".preview", ".idea", "libs"}
+        for dp, dns, fns in os.walk(self.ohos):
+            dns[:] = [x for x in dns if x not in skip and not x.startswith(".")]
+            yield dp, dns, fns
 
     def expo_checks(self):
         """Managed Expo apps generate ios/ and android/ at build time from app.json."""
@@ -1055,12 +1167,226 @@ class Scan:
                     hits.append(f"{rel(p, self.dir)}:{line}: {key} = false {('(' + desc + ')') if desc else ''}".strip())
         return hits[:4]
 
+    # -- HarmonyOS / AppGallery ---------------------------------------------
+
+    def harmony_checks(self):
+        h = self.ohos
+        if h is None:
+            return
+        d, g = self.dir, self.grep
+        app_p, bp_p = h / "AppScope" / "app.json5", h / "build-profile.json5"
+        app = (json5_loads(read(app_p)) or {}).get("app") or {}
+        bp = (json5_loads(read(bp_p)) or {}).get("app") or {}
+        products = bp.get("products") or []
+        modules = [Path(dp) / "module.json5" for dp, dns, fns in self.ohos_walk()
+                   if "module.json5" in fns and dp.replace(os.sep, "/").endswith("src/main")]
+        ar, br = rel(app_p, d), rel(bp_p, d)
+
+        facts = {"bundleName": app.get("bundleName"), "versionCode": app.get("versionCode"),
+                 "versionName": app.get("versionName"), "modules": [rel(m, d) for m in modules]}
+        prod = products[0] if products else {}
+        compat = api_level(prod.get("compatibleSdkVersion") or bp.get("compatibleSdkVersion"))
+        target = api_level(prod.get("targetSdkVersion") or prod.get("compileSdkVersion")
+                           or bp.get("targetSdkVersion") or bp.get("compileSdkVersion"))
+        facts.update(compatibleSdk=compat, targetSdk=target, runtimeOS=prod.get("runtimeOS") or bp.get("runtimeOS"))
+
+        gates = []
+        bn = app.get("bundleName") or ""
+        if app_p.exists() and not (re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9][A-Za-z0-9_]*){2,}", bn) and 7 <= len(bn) <= 128):
+            gates.append(f"{ar}: bundleName '{bn}' must have 3+ dot-separated parts and 7-128 characters")
+        if app.get("debug") is True:
+            gates.append(f"{ar}: debug is true. Release packages must not be debuggable")
+        if app.get("bundleType") in ("shared", "appService"):
+            gates.append(f"{ar}: bundleType {app.get('bundleType')} is for system apps only")
+        if compat is not None and compat < 10:
+            gates.append(f"{br}: compatibleSdkVersion API {compat}. AppGallery needs API 10 or later (error 1021)")
+        perms, where = {}, {}
+        for m in modules:
+            mj = (json5_loads(read(m)) or {}).get("module") or {}
+            mtext = read(m)
+            if mj.get("debug") is True or re.search(r"[\x22\x27]?debug[\x22\x27]?\s*:\s*true", mtext):
+                gates.append(f"{rel(m, d)}: debug is true")
+            dt = mj.get("deviceTypes") or []
+            if "default" in dt and "phone" in dt:
+                gates.append(f"{rel(m, d)}: deviceTypes lists both default and phone (error 12)")
+            strings = {}
+            for sp in sorted(m.parent.glob("resources/*/element/string.json")):
+                for item in (json5_loads(read(sp)) or {}).get("string") or []:
+                    strings.setdefault(item.get("name"), []).append((sp.parent.parent.name, item.get("value") or ""))
+            for req in mj.get("requestPermissions") or []:
+                name = str(req.get("name", "")).split(".")[-1]
+                line = next((i for i, ln in enumerate(mtext.splitlines(), 1) if req.get("name", "~") in ln), 1)
+                perms[name] = req
+                where.setdefault(name, f"{rel(m, d)}:{line}")
+                req["_strings"] = strings
+        if gates:
+            self.add("HOS-BUILD-GATES", "harmonyos", "CRITICAL", ["AppGallery package checks"],
+                     "HarmonyOS package settings that fail the AppGallery upload checks", gates)
+        if target is not None and target < 26:
+            self.add("HOS-TARGET-SDK", "harmonyos", "SUGGESTION", ["AppGallery target SDK notice (2026-09-07)", "package warning 7031"],
+                     f"targetSdkVersion API {target}. Huawei recommends API 26 and shows upgrade prompts from 2027-01-01", [br])
+        if facts["runtimeOS"] == "OpenHarmony":
+            self.add("HOS-TARGET-SDK", "harmonyos", "SUGGESTION", ["HarmonyOS runtimeOS"],
+                     "runtimeOS is OpenHarmony. HarmonyOS kits (Account, IAP, Push, Ads) are unavailable and AppGallery acceptance is unconfirmed", [br])
+        if not bp.get("signingConfigs"):
+            self.add("HOS-SIGNING", "harmonyos", "SUGGESTION", ["AppGallery package checks (993, 999)"],
+                     "No signing config in build-profile.json5. Fine if CI injects it, but release builds need the release certificate and release Profile, not DevEco auto-signing",
+                     [br])
+        keys = [rel(Path(dp) / f, d) for dp, dns, fns in self.ohos_walk() for f in fns if f.endswith((".p12", ".p7b", ".cer"))]
+        if keys:
+            self.add("HOS-SIGNING", "harmonyos", "IMPORTANT", ["Signing hygiene"],
+                     "Signing keys or profiles committed to the repo. Move them to CI secrets", keys)
+
+        facts["permissions"] = sorted(perms)
+        self.facts["harmonyos"] = facts
+        undeclared, weak, restricted, deprecated = [], [], [], []
+        generic = re.compile(r"^\s*((使用|需要)?(相机|定位|位置|权限|存储|麦克风|相册)(权限)?[。.]?|(this app )?(needs?|requires?) (the )?(permission|access)\b.*|\$string:\w+)\s*$", re.I)
+        for name, req in sorted(perms.items()):
+            if name in HOS_USER_GRANT and (not req.get("reason") or not req.get("usedScene")):
+                undeclared.append(f"{where[name]}: {name} without {'reason' if not req.get('reason') else 'usedScene'}")
+            reason = str(req.get("reason") or "")
+            if reason.startswith("$string:"):
+                for loc, val in req["_strings"].get(reason.split(":", 1)[1], [("?", "")]):
+                    if not val.strip() or len(val) > 256 or generic.match(val):
+                        weak.append(f"{where[name]}: {name} reason [{loc}] = \"{val[:60]}\"")
+            elif reason and name in HOS_USER_GRANT:
+                weak.append(f"{where[name]}: {name} reason is inline text, not a $string resource (no translations)")
+            if name in HOS_RESTRICTED:
+                alt = HOS_RESTRICTED[name]
+                restricted.append(f"{where[name]}: {name}" + (f" → use {alt}" if alt else ""))
+            if name in ("READ_MEDIA", "WRITE_MEDIA"):
+                deprecated.append(f"{where[name]}: {name}")
+        if undeclared:
+            self.add("HOS-PERM-DECLARE", "harmonyos", "CRITICAL", ["HarmonyOS permission declaration", "AppGallery 7.18"],
+                     "User-granted permission without reason or usedScene. The build or the review rejects it", undeclared)
+        if weak:
+            self.add("HOS-PERM-DECLARE", "harmonyos", "IMPORTANT", ["HarmonyOS permission declaration", "AppGallery 7.18"],
+                     "Permission reason is empty, too long or generic. The system dialog shows it and reviewers reject vague reasons", weak)
+        if restricted:
+            self.add("HOS-PERM-RESTRICTED", "harmonyos", "IMPORTANT", ["HarmonyOS restricted permissions (ACL)"],
+                     "Restricted permission. Allowed only for narrow use cases, with the permission in the release Profile and a usage video. Use the Picker or security control instead",
+                     restricted)
+        if deprecated:
+            self.add("HOS-PERM-DEPRECATED", "harmonyos", "SUGGESTION", ["HarmonyOS API 22"],
+                     "READ_MEDIA and WRITE_MEDIA are deprecated. Use the Pickers", deprecated)
+        if "LOCATION" in perms and "APPROXIMATELY_LOCATION" not in perms:
+            self.add("HOS-PERM-LOCATION", "harmonyos", "CRITICAL", ["HarmonyOS location permissions"],
+                     "Precise LOCATION without APPROXIMATELY_LOCATION. The request fails", [where["LOCATION"]])
+        if "LOCATION_IN_BACKGROUND" in perms:
+            self.add("HOS-PERM-LOCATION", "harmonyos", "IMPORTANT", ["HarmonyOS location permissions", "AppGallery 7.16, 7.17"],
+                     "Background location. The user must turn it on in Settings, and Huawei prefers a location continuous task", [where["LOCATION_IN_BACKGROUND"]])
+
+        ets = {p: t for p, t in self.corpus.files.items() if p.endswith(".ets")}
+        startup = [f"{rel(p, d)}:{i}: {ln.strip()[:100]}" for p, t in ets.items()
+                   if re.search(r"(Entry)?Ability|/pages/Index\.ets$", p)
+                   for i, ln in enumerate(t.splitlines(), 1) if "requestPermissionsFromUser(" in ln]
+        if startup:
+            self.add("HOS-PERM-STARTUP", "harmonyos", "IMPORTANT", ["AppGallery 7.17-7.19"],
+                     "Permission requested from the entry ability or the first page. Ask when the user starts the feature, never at launch",
+                     startup)
+        sdk_init = re.compile(r"\.init\(|initSdk|pushService\.getToken\(|getOAID\(|AGConnect|hiAppEvent\.|UMConfigure|Bugly|TalkingData|Sensors(Data)?\.")
+        guard = re.compile(r"privacy|agree|consent|隐私|同意", re.I)
+        early = [rel(p, d) for p, t in ets.items() if re.search(r"Ability(Stage)?\w*\.ets$", p) and sdk_init.search(t) and not guard.search(t)]
+        if early:
+            self.add("HOS-CONSENT-FIRST", "harmonyos", "IMPORTANT", ["AppGallery 7.1", "AppGallery 7.5"],
+                     "SDK initialised at app start with no privacy-consent check in the same file. No SDK may collect data before the user agrees",
+                     early)
+
+        third = [n for n in self.deps if re.search(r"wechat|weixin|tencent|qq|weibo|alipay|douyin|google_sign_in|sign_in_with_apple|google-signin", n, re.I)]
+        third += [rel(m, d) + ": querySchemes weixin" for m in modules if re.search(r"weixin|wxopensdk", read(m))]
+        account_kit = g(r"@kit\.AccountKit|LoginWithHuaweiIDButton|HuaweiIDProvider", {".ets", ".ts"}, limit=1)
+        if third and not account_kit:
+            self.add("HOS-HUAWEI-ID", "harmonyos", "CRITICAL", ["AppGallery 3.16"],
+                     "Third-party login on HarmonyOS without a HUAWEI ID option. Required when any third-party login is offered", third[:4])
+        if account_kit and not any(re.search(r"client_id", read(m)) for m in modules):
+            self.add("HOS-HUAWEI-ID", "harmonyos", "CRITICAL", ["HarmonyOS Account Kit"],
+                     "Account Kit used but no client_id in module.json5 metadata. HUAWEI ID sign-in fails", account_kit)
+
+        loose = [f"{rel(op, d)}: {k} {v}" for op in self.ohpm_files() for k, v in ((json5_loads(read(op)) or {}).get("dependencies") or {}).items()
+                 if str(v).strip() in ("*", "latest", "")]
+        if loose:
+            self.add("HOS-OHPM-DEPS", "harmonyos", "SUGGESTION", ["AppGallery 7.2"],
+                     "Unpinned ohpm dependencies. The shipped SDK set must match the privacy policy's SDK list", loose[:5])
+
+        self.add("AGC-ICP-FILING", "harmonyos", "SUGGESTION", ["MIIT APP filing", "AppGallery top rejection reason"],
+                 "HarmonyOS apps ship only in mainland China. File the app (APP备案) through the hosting provider with the 鸿蒙 platform and every bundleName, and have the software copyright certificate ready",
+                 [f"bundleName: {bn or 'unknown'}"])
+
+        oaid = g(r"getOAID\(", {".ets", ".ts"}, limit=2)
+        if oaid and "APP_TRACKING_CONSENT" not in perms:
+            self.add("AGC-OAID", "harmonyos", "CRITICAL", ["AppGallery 7.21-7.25", "HarmonyOS OAID"],
+                     "OAID read without declaring ohos.permission.APP_TRACKING_CONSENT. It returns zeros and breaks the OAID rules", oaid)
+        form_ads = [rel(p, d) for p, t in ets.items() if re.search(r"Form\w*\.ets$|/widget/", p) and re.search(r"@kit\.AdsKit|advertising\.", t)]
+        if form_ads:
+            self.add("AGC-ADS", "harmonyos", "CRITICAL", ["AppGallery 5.9"],
+                     "Ads inside a widget (form) ability. AppGallery forbids ads in widgets and extensions", form_ads)
+
+        ads = bool(self.cat["ads"] or g(r"@kit\.AdsKit|advertising\.", {".ets"}, limit=1))
+        tracked = ads or self.cat["analytics"] or self.cat["push"] or self.cat["tracking"]
+        lists = []
+        if tracked or self.cat["account_backend"] or self.cat["third_party_login"]:
+            if not g(r"已收集个人信息清单|收集个人信息清单|个人信息收集清单", UI_EXT, limit=1):
+                lists.append("no collected personal information list (已收集个人信息清单)")
+            if not g(r"第三方(信息)?共享(个人信息)?清单|第三方SDK(目录|清单|列表)|第三方信息共享", UI_EXT, limit=1):
+                lists.append("no third-party sharing list (第三方共享个人信息清单)")
+        if ads and not g(r"个性化(推荐|广告|内容)|personali[sz]ed (ads|recommendations)", UI_EXT, limit=1):
+            lists.append("ads or recommendations without a personalisation off switch (个性化推荐)")
+        if lists:
+            self.add("AGC-PRIVACY-LISTS", "harmonyos", "IMPORTANT", ["AppGallery 7.2", "AppGallery 7.4", "AppGallery 7.7", "MIIT 2021-292"],
+                     "Missing personal-information pages that Chinese review expects", lists)
+
+    def appgallery_android_checks(self):
+        app = self.android / "app"
+        if not app.is_dir():
+            return
+        gtext = "".join(read(f) for f in (app / "build.gradle", app / "build.gradle.kts", self.android / "build.gradle",
+                                           self.android / "build.gradle.kts", self.android / "settings.gradle", self.android / "settings.gradle.kts"))
+        hms_deps = [n for n in self.deps if re.match(r"(huawei_|agconnect_|@hmscore/)", n)]
+        hms = hms_deps or re.findall(r"com\.huawei\.(hms|agconnect)[:\w.-]*", gtext)
+        cfg = list(app.glob("agconnect-services.json")) + list(app.glob("src/*/agconnect-services.json"))
+        flavor = re.search(r"productFlavors\s*\{[\s\S]*?\b(huawei|hms|appgallery|agc)\b", gtext, re.I)
+        if not (hms or cfg or flavor):
+            return
+        self.facts["appgallery_android"] = {"hms": sorted(set(hms_deps or [m for m in hms]))[:8], "agconnect_services": [rel(c, self.dir) for c in cfg]}
+        if hms and not cfg:
+            self.add("HMS-AGC-CONFIG", "appgallery", "IMPORTANT", ["AppGallery 3.1"],
+                     "HMS Core libraries without agconnect-services.json. HMS kits fail at runtime on the review device",
+                     sorted(set(hms_deps or ["com.huawei.* in Gradle"]))[:4])
+        gms = [f"{n} → {alt}" for n, alt in GMS_DEPS.items() if n in self.deps]
+        gms += [f"{m}" for m in sorted(set(re.findall(r"com\.google\.(?:android\.gms:play-services-\w+|firebase:firebase-messaging)", gtext)))]
+        fallback = self.grep(r"HuaweiApiAvailability|isHuaweiMobileServicesAvailable|GoogleApiAvailability|isGooglePlayServicesAvailable|google_api_availability|isHmsAvailable|isGmsAvailable", CODE_EXT, limit=1)
+        if gms and not fallback:
+            self.add("HMS-GMS-DEPENDENCY", "appgallery", "IMPORTANT" if not hms else "SUGGESTION", ["AppGallery 3.1"],
+                     "Google Mobile Services features with no HMS fallback or availability check. Huawei devices have no GMS, so these flows break in review",
+                     gms[:6])
+
+    def tag_huawei_refs(self):
+        """Cross-store findings also cite the AppGallery rule when the app ships there."""
+        if "harmonyos" not in self.facts["platforms"] and not self.facts.get("appgallery_android"):
+            return
+        refs = {
+            "X-ACCOUNT-DELETION": "AppGallery 7.3 (deletion within 15 working days)", "X-PRIVACY-POLICY-LINK": "AppGallery 7.1",
+            "X-UGC-MODERATION": "AppGallery 4.15 (report entry must say 举报 or 投诉)", "X-UGC-PRESENT": "AppGallery 4.15",
+            "X-AI-DATA-SHARING": "AppGallery AI declaration (2025-09-01)", "X-AI-IMAGERY": "AppGallery AI declaration (2025-09-01)",
+            "X-CODE-PUSH": "AppGallery 3.13 (no self-update)", "X-LOOT-BOX": "AppGallery 6.3 (probabilities before purchase)",
+            "X-PAYWALL-TERMS": "AppGallery 6.2 (auto-renewal rules)", "X-ADS-PRESENT": "AppGallery Section 5",
+            "X-KIDS-AUDIENCE": "AppGallery Section 8", "X-PLACEHOLDER": "AppGallery 3.4 (no test builds)",
+            "X-WEBVIEW-WRAPPER": "AppGallery 3.5", "X-ANON-CHAT": "AppGallery 8 (stranger chat may not target minors)",
+            "X-AGE-RATING-INPUTS": "AppGallery age rating (3+ to 18+)", "X-HIDDEN-FEATURE": "AppGallery 2.5",
+        }
+        for f in self.findings:
+            if f["id"] in refs and refs[f["id"]] not in f["refs"]:
+                f["refs"] = f["refs"] + [refs[f["id"]]]
+
     def run(self):
         self.load()
         self.expo_checks()
         self.ios_checks()
         self.android_checks()
+        self.appgallery_android_checks()
+        self.harmony_checks()
         self.cross_checks()
+        self.tag_huawei_refs()
         order = {lvl: i for i, lvl in enumerate(LEVELS)}
         self.findings.sort(key=lambda f: (order.get(f["level"], 9), f["id"]))
         return {"facts": self.facts, "findings": self.findings}

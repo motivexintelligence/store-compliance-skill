@@ -1,0 +1,24 @@
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "deviceTypes": ["default", "phone"],
+    "mainElement": "EntryAbility",
+    "abilities": [{ "name": "EntryAbility", "srcEntry": "./ets/entryability/EntryAbility.ets" }],
+    "requestPermissions": [
+      { "name": "ohos.permission.INTERNET" },
+      { "name": "ohos.permission.CAMERA" },
+      {
+        "name": "ohos.permission.READ_IMAGEVIDEO",
+        "reason": "$string:photo_reason",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      },
+      {
+        "name": "ohos.permission.LOCATION",
+        "reason": "$string:location_reason",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "always" }
+      },
+      { "name": "ohos.permission.READ_MEDIA", "reason": "$string:photo_reason", "usedScene": { "when": "inuse" } }
+    ]
+  }
+}

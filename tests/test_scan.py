@@ -48,6 +48,7 @@ class FlutterFixture(unittest.TestCase):
             "AND-RESTORE-CREDENTIALS", "AND-LEGACY-GSI", "AND-SIDELOAD-FLAVOR",
             "IOS-DEPLOYMENT-TARGET", "IOS-XCODE-PINNED-OLD", "IOS-SDK-MANIFEST-RISK", "IOS-PRIVACY-MANIFEST-INVALID",
             "IOS-ADS-IN-EXTENSION", "X-CUSTOM-REVIEW-PROMPT", "X-SIWA-RELAY-DOMAIN", "X-AGE-RATING-INPUTS",
+            "HMS-GMS-DEPENDENCY",
         }
         self.assertTrue(expected <= ids(self.app), expected - ids(self.app))
 
@@ -56,6 +57,45 @@ class FlutterFixture(unittest.TestCase):
             self.assertIn(f["level"], scan.LEVELS)
             self.assertTrue(f["refs"] and f["title"])
             self.assertLessEqual(len(f["evidence"]), scan.MAX_EVIDENCE)
+
+
+class HarmonyFixture(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.apps = run("harmony_app")
+        cls.app = cls.apps[0]
+
+    def test_detected_as_arkts(self):
+        self.assertEqual(len(self.apps), 1)
+        self.assertEqual(self.app["facts"]["stack"], "arkts")
+        self.assertEqual(self.app["facts"]["platforms"], ["harmonyos"])
+
+    def test_facts(self):
+        h = self.app["facts"]["harmonyos"]
+        self.assertEqual(h["bundleName"], "com.demo")
+        self.assertEqual((h["compatibleSdk"], h["targetSdk"]), (9, 12))
+        self.assertIn("READ_IMAGEVIDEO", h["permissions"])
+
+    def test_expected_findings(self):
+        expected = {
+            "HOS-BUILD-GATES", "HOS-TARGET-SDK", "HOS-SIGNING", "HOS-PERM-DECLARE", "HOS-PERM-RESTRICTED",
+            "HOS-PERM-DEPRECATED", "HOS-PERM-LOCATION", "HOS-PERM-STARTUP", "HOS-CONSENT-FIRST", "HOS-HUAWEI-ID",
+            "HOS-OHPM-DEPS", "AGC-ICP-FILING", "AGC-OAID", "X-PLACEHOLDER",
+        }
+        self.assertTrue(expected <= ids(self.app), expected - ids(self.app))
+
+    def test_huawei_refs_added(self):
+        placeholder = next(f for f in self.app["findings"] if f["id"] == "X-PLACEHOLDER")
+        self.assertTrue(any("AppGallery" in r for r in placeholder["refs"]))
+
+
+class Json5(unittest.TestCase):
+    def test_comments_quotes_trailing_commas(self):
+        text = "{ // c\n a: 'x', /* b */ \"u\": \"https://e.com/p\", list: [1, 2,], }"
+        self.assertEqual(scan.json5_loads(text), {"a": "x", "u": "https://e.com/p", "list": [1, 2]})
+
+    def test_api_level(self):
+        self.assertEqual([scan.api_level(v) for v in ("5.0.0(12)", "26.0.0", 12, None)], [12, 26, 12, None])
 
 
 class Cli(unittest.TestCase):

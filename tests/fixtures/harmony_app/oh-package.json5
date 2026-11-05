@@ -1,0 +1,7 @@
+{
+  "name": "fixture_harmony",
+  "version": "1.0.0",
+  "dependencies": {
+    "@tencent/wechat_open_sdk": "*"
+  }
+}

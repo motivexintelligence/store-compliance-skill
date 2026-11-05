@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "app_name", "value": "Fixture" },
+    { "name": "photo_reason", "value": "需要权限" },
+    { "name": "location_reason", "value": "Used to show nearby stores on the map." }
+  ]
+}
