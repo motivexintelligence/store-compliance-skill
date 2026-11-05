@@ -9,3 +9,7 @@ packages:
     dependency: "direct main"
     source: hosted
     version: "5.1.0"
+  google_sign_in:
+    dependency: "direct main"
+    source: hosted
+    version: "6.2.1"

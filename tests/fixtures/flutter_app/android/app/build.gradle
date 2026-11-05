@@ -6,4 +6,13 @@ android {
         minSdk 21
         targetSdk 34
     }
+    flavorDimensions "store"
+    productFlavors {
+        huawei { dimension "store"; applicationIdSuffix ".huawei" }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
 }

@@ -44,6 +44,8 @@ class FlutterFixture(unittest.TestCase):
             "AND-TARGET-SDK", "AND-BILLING-VERSION", "AND-PERM-READ_MEDIA_IMAGES", "AND-PERM-QUERY_ALL_PACKAGES",
             "AND-CLEARTEXT", "IOS-ATT", "X-REVIEW-MODE-SWITCH", "X-SIGN-IN-WITH-APPLE", "X-ACCOUNT-DELETION",
             "X-IAP-RESTORE", "X-PLACEHOLDER", "X-PRIVACY-POLICY-LINK",
+            "AND-16KB-PAGE", "AND-EDGE-TO-EDGE", "AND-PREDICTIVE-BACK", "AND-ORIENTATION-LOCK", "AND-MINIFY-OFF",
+            "AND-RESTORE-CREDENTIALS", "AND-LEGACY-GSI", "AND-SIDELOAD-FLAVOR",
         }
         self.assertTrue(expected <= ids(self.app), expected - ids(self.app))
 

@@ -8,6 +8,6 @@ class Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isReviewMode) return const Text('Coming soon');
-    return const Text('Lorem ipsum');
+    return WillPopScope(onWillPop: () async => false, child: const Text('Lorem ipsum'));
   }
 }

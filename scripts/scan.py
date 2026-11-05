@@ -145,7 +145,7 @@ PH_MACROS = {
 
 # Android permissions with a Play policy behind them: name -> (level, note)
 ANDROID_RESTRICTED = {
-    "READ_CALL_LOG": ("CRITICAL", "SMS and Call Log policy. Phone-call account verification stops being a permitted use on 2027-01-27"),
+    "READ_CALL_LOG": ("CRITICAL", "SMS and Call Log policy. Phone-call account verification stops being a permitted use on 2027-01-27. Use the Digital Credentials, SMS Retriever or SMS User Consent API"),
     "WRITE_CALL_LOG": ("CRITICAL", "SMS and Call Log policy. Rejected unless the app is the default dialer"),
     "PROCESS_OUTGOING_CALLS": ("CRITICAL", "SMS and Call Log policy"),
     "READ_SMS": ("CRITICAL", "SMS and Call Log policy. For OTP use the SMS Retriever or SMS User Consent API"),
@@ -160,14 +160,17 @@ ANDROID_RESTRICTED = {
     "READ_MEDIA_VIDEO": ("IMPORTANT", "Photo and Video Permissions policy. One-off picks must use the Photo Picker"),
     "READ_EXTERNAL_STORAGE": ("SUGGESTION", "No effect on targetSdk 33+. Photo Picker or SAF"),
     "WRITE_EXTERNAL_STORAGE": ("SUGGESTION", "No effect on targetSdk 30+. MediaStore or app-specific dirs"),
-    "READ_CONTACTS": ("IMPORTANT", "Contacts policy (2027-01-27): use the Android Contact Picker unless broad access is core"),
-    "WRITE_CONTACTS": ("IMPORTANT", "Contacts policy (2027-01-27)"),
+    "READ_CONTACTS": ("IMPORTANT", "Contacts policy (2027-01-27, targetSdk 37+): use the Android Contact Picker unless broad access is core"),
+    "WRITE_CONTACTS": ("IMPORTANT", "Direct contact writes stop at targetSdk 38. Use ACTION_INSERT or ACTION_INSERT_OR_EDIT intents"),
+    "MANAGE_CONTACTS": ("IMPORTANT", "Restricted to contact managers, dialers, caller ID, sync and backup apps. Declaration from 2027-08-25"),
+    "ACCESS_LOCAL_NETWORK": ("IMPORTANT", "Local network permission declaration for targetSdk 37+ (2027-08-25). Use the NsdManager picker if it is enough"),
+    "NEARBY_WIFI_DEVICES": ("SUGGESTION", "Local network access: the ACCESS_LOCAL_NETWORK declaration applies from targetSdk 37 (2027-08-25)"),
     "SCHEDULE_EXACT_ALARM": ("IMPORTANT", "Exact alarms: use inexact alarms unless timing is core functionality"),
     "USE_EXACT_ALARM": ("CRITICAL", "USE_EXACT_ALARM is only for alarm clock and calendar apps"),
     "USE_FULL_SCREEN_INTENT": ("IMPORTANT", "Full-screen intents are for calls and alarms. Others need a declaration and user grant"),
     "BIND_ACCESSIBILITY_SERVICE": ("CRITICAL", "Accessibility API policy: declaration and prominent disclosure"),
     "SYSTEM_ALERT_WINDOW": ("SUGGESTION", "Overlay permission needs a justification"),
-    "ACCESS_FINE_LOCATION": ("SUGGESTION", "Is precise location needed? On Android 17 the location button is the recommended minimum scope"),
+    "ACCESS_FINE_LOCATION": ("IMPORTANT", "Play Console declaration for precise location from 2027-01-27. For targetSdk 37+ the location button is mandatory for one-time precise location"),
     "BLUETOOTH_SCAN": ("SUGGESTION", "Without neverForLocation the scan counts as location access"),
     "AD_ID": ("SUGGESTION", "Advertising ID: declare in Data safety, remove for child audiences"),
     "FOREGROUND_SERVICE_LOCATION": ("IMPORTANT", "FGS location needs a declaration. Geofencing is no longer an approved use on 2027-01-27"),
@@ -181,7 +184,8 @@ ANDROID_RESTRICTED = {
     "FOREGROUND_SERVICE_PHONE_CALL": ("IMPORTANT", "FGS declaration"),
     "FOREGROUND_SERVICE_REMOTE_MESSAGING": ("IMPORTANT", "FGS declaration"),
     "FOREGROUND_SERVICE_MEDIA_PLAYBACK": ("SUGGESTION", "FGS mediaPlayback: must play media the user started"),
-    "BODY_SENSORS": ("IMPORTANT", "Health apps policy and Health Connect declaration"),
+    "BODY_SENSORS": ("IMPORTANT", "Replaced on Android 16 by android.permission.health.* with the Health Connect rationale activity. Health apps declaration and organization account"),
+    "BIND_VPN_SERVICE": ("IMPORTANT", "VpnService policy: core-function VPN only, Console declaration with video, organization account"),
     "ACTIVITY_RECOGNITION": ("SUGGESTION", "Declare fitness data in Data safety"),
     "RECORD_AUDIO": ("SUGGESTION", "Declare audio in Data safety, prominent disclosure if not obvious"),
 }
@@ -599,9 +603,18 @@ class Scan:
                     levels[key] = str(fd.get(val.split(".")[1], val))
         self.facts["android_sdk_levels"] = levels
         t = levels.get("targetSdk")
-        if t and t.isdigit() and int(t) < 36:
+        mtext = "".join(read(mp) for mp in (app / "src").glob("*/AndroidManifest.xml"))
+        form, need = "phone and tablet", 36
+        if "android.hardware.type.watch" in mtext:
+            form, need = "Wear OS", 35
+        elif "android.hardware.type.automotive" in mtext:
+            form, need = "Android Automotive", 35
+        elif "android.software.leanback" in mtext or "LEANBACK_LAUNCHER" in mtext:
+            form, need = "Android TV", 34
+        self.facts["android_form_factor"] = form
+        if t and t.isdigit() and int(t) < need:
             self.add("AND-TARGET-SDK", "android", "CRITICAL", ["Play Target API level (2026-08-31)"],
-                     f"targetSdk is {t}. New apps and updates need 36 (Android 16) since 2026-08-31", [rel(gfile, self.dir)])
+                     f"targetSdk is {t}. New {form} apps and updates need {need} since 2026-08-31, no extensions left", [rel(gfile, self.dir)])
         elif not (t and t.isdigit()):
             self.add("AND-TARGET-SDK-UNKNOWN", "android", "SUGGESTION", ["Play Target API level"],
                      f"targetSdk could not be resolved ({t}). Check by hand that it is 36", [rel(gfile, self.dir)])
@@ -621,13 +634,84 @@ class Scan:
             m = re.match(r"\d+", b)
             if b != "8+" and (int(m.group(0)) if m else 0) < 8:
                 self.add("AND-BILLING-VERSION", "android", "CRITICAL", ["Play Billing Library deprecation (2026-08-31)"],
-                         "Play Billing Library below 8. Updates are blocked since 2026-08-31 (extension at most to 2026-11-01)",
+                         "Play Billing Library below 8. Updates are blocked since 2026-08-31, the last extensions ended 2026-11-01",
                          [f"{src}: PBL {b}"])
+            elif b == "8+" or (m and int(m.group(0)) == 8):
+                self.add("AND-BILLING-PBL9", "android", "SUGGESTION", ["Play Billing Library deprecation (2027-08-31)"],
+                         "Play Billing Library 8. New apps and updates need PBL 9 from 2027-08-31. Plan the plugin upgrade",
+                         [f"{src}: PBL {b}"])
+
+        self.android_quality_checks(app, gfile, gtext, bills)
 
         if any("location" in s for s in fgs):
             self.add("AND-FGS-LOCATION", "android", "IMPORTANT", ["Play Foreground service policy (2027-01-27)"],
                      "Location-type foreground service. Geofencing stops being an approved use, move it to the Geofence API",
                      [f"foregroundServiceType: {', '.join(fgs)}"])
+
+    def android_quality_checks(self, app, gfile, gtext, bills):
+        """Android 16 behaviour, 16 KB pages, R8, deprecated Google APIs and other Play gates."""
+        g, d = self.grep, self.dir
+        root_gradle = "".join(read(self.android / f) for f in ("settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"))
+        m = (re.search(r"com\.android\.application[\x22\x27)]*\s*version\s*[\x22\x27]([\d.]+)", root_gradle)
+             or re.search(r"com\.android\.tools\.build:gradle:([\d.]+)", root_gradle))
+        agp = m.group(1) if m else None
+        self.facts["android_gradle_plugin"] = agp
+        native = (self.facts["stack"] in ("flutter", "react-native", "expo") or (app / "src" / "main" / "cpp").is_dir()
+                  or (app / "src" / "main" / "jniLibs").is_dir() or "externalNativeBuild" in gtext)
+        if native and agp and ver_tuple(agp) < (8, 5, 1):
+            self.add("AND-16KB-PAGE", "android", "IMPORTANT", ["Play 16 KB page size (2027-02-01)"],
+                     f"Native code with Android Gradle Plugin {agp}. AGP 8.5.1+ (and NDK r28+) aligns libraries to 16 KB. Unaligned updates cannot be released from 2027-02-01",
+                     [rel(gfile, d)])
+        if re.search(r"useLegacyPackaging\s*(=\s*)?true", gtext):
+            self.add("AND-16KB-PAGE", "android", "IMPORTANT", ["Play 16 KB page size (2027-02-01)"],
+                     "jniLibs useLegacyPackaging is on. Compressed native libraries are not 16 KB aligned in the APK", [rel(gfile, d)])
+
+        e2e = g(r"windowOptOutEdgeToEdgeEnforcement", {".xml"}, limit=2)
+        if e2e:
+            self.add("AND-EDGE-TO-EDGE", "android", "IMPORTANT", ["Android 16 behaviour (targetSdk 36)"],
+                     "Edge-to-edge opt-out is ignored on Android 16. Content will draw under the system bars unless insets are handled", e2e)
+        back = (g(r"\bWillPopScope\(", {".dart"}, limit=2) + g(r"override\s+fun\s+onBackPressed\(|public void onBackPressed\(", {".kt", ".java"}, limit=2)
+                + g(r"enableOnBackInvokedCallback=\x22false\x22", {".xml"}, limit=1))
+        if back:
+            self.add("AND-PREDICTIVE-BACK", "android", "SUGGESTION", ["Android 16 behaviour (targetSdk 36)"],
+                     "Back handling that Android 16 no longer calls (WillPopScope, onBackPressed or the predictive-back opt-out). Move to PopScope or OnBackPressedCallback", back)
+        orient = (g(r"android:screenOrientation=|android:resizeableActivity=\x22false\x22|android:(min|max)AspectRatio=", {".xml"}, limit=2)
+                  + g(r"setPreferredOrientations\(|lockAsync\(|setRequestedOrientation\(", CODE_EXT, limit=2))
+        if orient and "appCategory=\x22game\x22" not in "".join(read(mp) for mp in (app / "src").glob("*/AndroidManifest.xml")):
+            self.add("AND-ORIENTATION-LOCK", "android", "SUGGESTION", ["Android 16 large screens (targetSdk 36)", "Play large-screen quality"],
+                     "Orientation or resizability lock. Android 16 ignores it on tablets and foldables, and the opt-out ends at targetSdk 37", orient)
+
+        if (re.search(r"buildTypes\s*\{[\s\S]*?release\s*\{[^}]*?(minifyEnabled\s+false|isMinifyEnabled\s*=\s*false)", gtext)
+                or re.search(r"enableProguardInReleaseBuilds\s*=\s*false", gtext)):
+            self.add("AND-MINIFY-OFF", "android", "SUGGESTION", ["Play technical quality: DEX optimization (Feb 2027)"],
+                     "Release build without R8. When DEX exceeds 10 MB, Play wants 25% obfuscation, optimization and shrinking from February 2027",
+                     [rel(gfile, d)])
+
+        if self.cat["third_party_login"] or self.cat["account_backend"] or self.cat["apple_login"]:
+            restore = g(r"RestoreCredential|blockstore|BlockStore", CODE_EXT, limit=1) or [n for n in self.deps if "credential" in n or "block_store" in n]
+            if not restore:
+                self.add("AND-RESTORE-CREDENTIALS", "android", "SUGGESTION", ["Play technical quality: zero-tap sign-in (April 2027)"],
+                         "Sign-in without Restore Credentials. From April 2027 Play expects the signed-in state to come back on a new device",
+                         [f"Auth: {', '.join(self.cat['third_party_login'] + self.cat['account_backend'])}"])
+        gsi = self.locked.get("google_sign_in")
+        legacy = g(r"import com\.google\.android\.gms\.auth\.api\.signin\.GoogleSignIn", {".kt", ".java"}, limit=2)
+        if (gsi and ver_tuple(gsi) < (7,)) or legacy:
+            self.add("AND-LEGACY-GSI", "android", "SUGGESTION", ["Google Sign-In for Android deprecation"],
+                     "Legacy Google Sign-In API. It is deprecated and will be removed from the Play services Auth SDK. Move to Credential Manager",
+                     ([f"google_sign_in {gsi}"] if gsi else []) + legacy)
+        sn = g(r"SafetyNet\.getClient\(|play-services-safetynet|safetynet_attestation", CODE_EXT | {".gradle", ".kts"}, limit=2) + [n for n in self.deps if "safetynet" in n]
+        if sn or "play-services-safetynet" in gtext:
+            self.add("AND-SAFETYNET", "android", "IMPORTANT", ["SafetyNet Attestation turned down"],
+                     "SafetyNet Attestation no longer works. Any check that depends on it fails. Use the Play Integrity API", sn or [rel(gfile, d)])
+        vpn = [n for n in self.deps if re.search(r"vpn|wireguard", n, re.I)] + g(r"extends VpnService|:\s*VpnService\(", {".kt", ".java"}, limit=1)
+        if vpn:
+            self.add("AND-VPN-SERVICE", "android", "IMPORTANT", ["Play VpnService policy", "Play organization account"],
+                     "VpnService in use. Core-function VPN only, Play Console declaration with a video, organization account required", vpn)
+        flav = re.search(r"productFlavors\s*\{[\s\S]*?(applicationIdSuffix|applicationId)\b", gtext)
+        if flav:
+            self.add("AND-SIDELOAD-FLAVOR", "android", "SUGGESTION", ["Android developer verification (global in 2027)"],
+                     "Flavors with their own package name. Each package name shipped outside Play must be registered for developer verification",
+                     [rel(gfile, d)])
 
     # -- both stores --------------------------------------------------------
 
