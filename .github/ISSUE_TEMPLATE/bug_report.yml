@@ -1,0 +1,26 @@
+name: Bug
+description: The scanner crashed, missed an app, or the skill did something wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command or prompt you ran and the repo layout (folder names are enough).
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      placeholder: Claude Code 2.x, Codex CLI, Gemini CLI...
+  - type: input
+    id: python
+    attributes:
+      label: Python version

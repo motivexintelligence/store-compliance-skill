@@ -1,0 +1,30 @@
+name: False positive
+description: The scanner reported something that is not a violation.
+labels: [false positive]
+body:
+  - type: input
+    id: finding
+    attributes:
+      label: Finding ID
+      placeholder: X-CUSTOM-REVIEW-PROMPT
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence line the scanner printed
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is not a violation
+      description: A short snippet helps. Do not paste secrets or private code.
+    validations:
+      required: true
+  - type: input
+    id: stack
+    attributes:
+      label: Stack and version
+      placeholder: Flutter 3.38, ArkTS API 20, Expo SDK 54...

@@ -1,0 +1,31 @@
+name: Rule change
+description: A store rule changed, was added, or is described wrong.
+labels: [rules]
+body:
+  - type: dropdown
+    id: store
+    attributes:
+      label: Store
+      options: [Apple App Store, Google Play, Huawei AppGallery, More than one]
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Official source
+      description: Link to the store's own page.
+      placeholder: https://developer.apple.com/news/...
+    validations:
+      required: true
+  - type: input
+    id: date
+    attributes:
+      label: Date published or in force
+      placeholder: 2026-11-16
+  - type: textarea
+    id: change
+    attributes:
+      label: What changed
+      description: What the rule says now and what it means for an app's code or config.
+    validations:
+      required: true

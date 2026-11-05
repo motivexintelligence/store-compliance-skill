@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.8", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Scanner runs on the fixtures
+        run: |
+          python -I scripts/scan.py tests/fixtures/flutter_app > /dev/null
+          python -I scripts/scan.py tests/fixtures/harmony_app > /dev/null
+      - name: SKILL.md frontmatter follows the Agent Skills standard
+        run: |
+          python - <<'PY'
+          import re, sys
+          text = open("SKILL.md", encoding="utf-8").read()
+          fm = re.match(r"---\n(.*?)\n---\n", text, re.S).group(1)
+          keys = {m.group(1) for m in re.finditer(r"^([a-z-]+):", fm, re.M)}
+          allowed = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+          name = re.search(r"^name:\s*(\S+)", fm, re.M).group(1)
+          desc = re.search(r"^description:\s*(.+)$", fm, re.M).group(1)
+          errors = []
+          if keys - allowed:
+              errors.append(f"non-standard keys: {sorted(keys - allowed)}")
+          if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name) or len(name) > 64:
+              errors.append(f"bad name: {name}")
+          if len(desc) > 1024:
+              errors.append(f"description is {len(desc)} characters, max 1024")
+          if len(text.splitlines()) > 500:
+              errors.append("SKILL.md is over 500 lines")
+          print("\n".join(errors) or "ok")
+          sys.exit(1 if errors else 0)
+          PY
