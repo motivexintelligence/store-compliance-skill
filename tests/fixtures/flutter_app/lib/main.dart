@@ -11,3 +11,6 @@ class Home extends StatelessWidget {
     return WillPopScope(onWillPop: () async => false, child: const Text('Lorem ipsum'));
   }
 }
+
+const rewardText = 'Rate us 5 stars and get 50 coins';
+const relayCheck = 'privaterelay.appleid.com';

@@ -11,5 +11,6 @@ dependencies:
   purchases_flutter: ^8.1.0
   firebase_remote_config: ^5.0.0
   image_picker: ^1.1.0
+  package_info: ^2.0.2
 flutter:
   uses-material-design: true

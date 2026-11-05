@@ -11,6 +11,7 @@ Supports Flutter, React Native / Expo and native Android/iOS projects.
 """
 import json
 import os
+import plistlib
 import re
 import shutil
 import subprocess
@@ -549,6 +550,95 @@ class Scan:
             self.add("IOS-EXPORT-COMPLIANCE", "ios", "SUGGESTION", ["App Store Connect export compliance"],
                      "ITSAppUsesNonExemptEncryption is not set, so every upload waits on the encryption question", [pr])
 
+        self.ios_upload_checks(pbx, podfile, ent, manifests)
+
+    def ios_upload_checks(self, pbx, podfile, ent, manifests):
+        """Upload floors, SDK manifest and signature risks, ads in extensions, VPN."""
+        d = self.dir
+        targets = re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+)", pbx) + re.findall(r"^\s*platform\s+:ios,\s*[\x27\x22]([\d.]+)", podfile, re.M)
+        low = sorted({t for t in targets if ver_tuple(t) < (13,)}, key=ver_tuple)
+        if low:
+            self.add("IOS-DEPLOYMENT-TARGET", "ios", "CRITICAL", ["App Store upload: minimum iOS 13 (2026-09-09)"],
+                     f"Deployment target {low[0]}. Uploads must target iOS 13 or later since 2026-09-09",
+                     ["ios/*.xcodeproj/project.pbxproj IPHONEOS_DEPLOYMENT_TARGET", "ios/Podfile platform :ios"])
+
+        old_xcode = []
+        roots = [d] + [p for p in d.parents][:2]
+        for r in roots:
+            for f in [r / ".xcode-version", r / "codemagic.yaml", r / "ios" / "fastlane" / "Fastfile", r / "fastlane" / "Fastfile"] + sorted((r / ".github" / "workflows").glob("*.y*ml")):
+                text = read(f)
+                if not text:
+                    continue
+                for i, line in enumerate(text.splitlines(), 1):
+                    m = (re.search(r"xcode(?:-version|_version)?[\x22\x27]?\s*[:=(]\s*(?:version:\s*)?[\x22\x27]?(\d+)(?:\.\d+)*", line, re.I)
+                         or (re.fullmatch(r"\s*(\d+)(?:\.\d+)*\s*", line) if f.name == ".xcode-version" else None))
+                    if m and 10 <= int(m.group(1)) < 26:
+                        old_xcode.append(f"{rel(f, d)}:{i}: {line.strip()[:100]}")
+                if re.search(r"runs-on:\s*macos-1[1-4]\b", text) and re.search(r"build (ipa|ios)|xcodebuild|gym|build_app|eas build", text):
+                    old_xcode.append(f"{rel(f, d)}: macOS 14 or older runner image (no Xcode 26)")
+            if (r / ".git").exists():
+                break
+        if old_xcode:
+            self.add("IOS-XCODE-PINNED-OLD", "ios", "IMPORTANT", ["App Store upload: Xcode 26 / iOS 26 SDK (2026-04-28)"],
+                     "CI or tooling pins an Xcode older than 26. Uploads built with it are rejected. The iOS 27 SDK follows in April 2027",
+                     old_xcode)
+
+        stale = [f"{n} {self.locked.get(n, '')}".strip() for n in ("package_info", "wakelock") if n in self.deps or n in self.locked]
+        unsigned = []
+        for fw in list(self.ios.rglob("*.xcframework")) + list(self.ios.rglob("*.framework")):
+            if {"Pods", ".symlinks", "build", "Flutter", "DerivedData"} & set(fw.parts) or ".xcframework/" in str(fw.parent) + "/":
+                continue
+            if not any(fw.rglob("_CodeSignature")):
+                unsigned.append(f"{rel(fw, d)}: no _CodeSignature")
+        if stale or unsigned:
+            self.add("IOS-SDK-MANIFEST-RISK", "ios", "IMPORTANT", ["ITMS-91061", "ITMS-91065"],
+                     "SDK on Apple's privacy-manifest list without a manifest (discontinued package) or a vendored binary SDK without a signature. Uploads that add them are rejected",
+                     stale + unsigned[:3])
+
+        api_types = {"NSPrivacyAccessedAPICategoryUserDefaults", "NSPrivacyAccessedAPICategoryFileTimestamp",
+                     "NSPrivacyAccessedAPICategorySystemBootTime", "NSPrivacyAccessedAPICategoryDiskSpace",
+                     "NSPrivacyAccessedAPICategoryActiveKeyboards"}
+        for mp in manifests:
+            problems = []
+            try:
+                data = plistlib.loads(Path(mp).read_bytes())
+            except Exception as e:  # malformed XML or binary plist
+                problems.append(f"not a valid plist: {type(e).__name__}")
+                data = {}
+            for entry in data.get("NSPrivacyAccessedAPITypes", []) if isinstance(data, dict) else []:
+                t = entry.get("NSPrivacyAccessedAPIType")
+                if t not in api_types:
+                    problems.append(f"unknown NSPrivacyAccessedAPIType {t}")
+                for code in entry.get("NSPrivacyAccessedAPITypeReasons", []):
+                    if not re.fullmatch(r"[0-9A-F]{4}\.\d", str(code)):
+                        problems.append(f"malformed reason code {code}")
+            if problems:
+                self.add("IOS-PRIVACY-MANIFEST-INVALID", "ios", "CRITICAL", ["ITMS-91056"],
+                         "Privacy manifest that App Store Connect cannot validate. The upload is rejected",
+                         [f"{rel(mp, d)}: {x}" for x in problems])
+
+        ad_pod = re.compile(r"Google-Mobile-Ads|AppLovin|IronSource|UnityAds|FBAudienceNetwork|Mintegral|Pangle|InMobi|Vungle|Chartboost|google_mobile_ads", re.I)
+        lines, stack = podfile.splitlines(), []
+        for i, line in enumerate(lines, 1):
+            m = re.match(r"(\s*)target\s+[\x27\x22]([^\x27\x22]+)[\x27\x22]\s+do", line)
+            if m:
+                stack.append((len(m.group(1)), m.group(2)))
+                continue
+            if stack and re.match(r"\s*end\s*$", line) and len(line) - len(line.lstrip()) == stack[-1][0]:
+                stack.pop()
+                continue
+            ext = [t for _, t in stack if re.search(r"widget|extension|clip|keyboard|intents|notification|watch", t, re.I)]
+            if ext and ad_pod.search(line):
+                self.add("IOS-ADS-IN-EXTENSION", "ios", "CRITICAL", ["Apple 2.5.18", "Apple 2.5.16"],
+                         f"Ad SDK linked into the {ext[-1]} target. Ads are only allowed in the main app",
+                         [f"ios/Podfile:{i}: {line.strip()}"])
+                break
+
+        if re.search(r"com\.apple\.developer\.networking\.(networkextension|vpn\.api)", ent):
+            self.add("IOS-VPN", "ios", "IMPORTANT", ["Apple 5.4", "Apple 5.5"],
+                     "Network Extension or VPN entitlement. Organization account, a data-collection declaration before use, no data sharing",
+                     ["ios/*/*.entitlements"])
+
     # -- Android ------------------------------------------------------------
 
     def android_checks(self):
@@ -759,7 +849,7 @@ class Scan:
         links = g(r"(buy|purchase|satın ?al|abone ol|subscribe)[^\n]{0,80}(https?://|launchUrl|openUrl|Linking\.openURL)|https?://[^\s'\"]*/(checkout|pricing|odeme|ödeme|satin-al)\b", CODE_EXT)
         if self.cat["external_pay"] or links:
             self.add("X-EXTERNAL-PAYMENT", "both", "IMPORTANT", ["Apple 3.1.1", "Apple 3.1.3", "Play Payments policy"],
-                     "External payment or purchase link. Digital goods must use IAP or Play Billing unless a regional entitlement applies",
+                     "External payment or purchase link. Fine on Apple's US storefront without an entitlement, elsewhere digital goods need IAP or Play Billing unless a regional programme applies. Check the link is gated by storefront",
                      ([f"SDKs: {', '.join(self.cat['external_pay'])}"] if self.cat["external_pay"] else []) + links)
 
         ugc = g(r"collection(Group)?\(\s*[\w.$\x27\x22]*(message|chat|comment|post|conversation|room|feed|review|story)s?\w*[\x27\x22]?\s*\)|\b(publish|create|submit|share)(Post|Comment|Story|Review)\w*\(|postComment|anonymous chat|random chat", CODE_EXT)
@@ -779,7 +869,7 @@ class Scan:
             anon = g(r"anonymous chat|anonim (sohbet|mesaj)|random chat|rastgele (biriyle|kişiyle|sohbet)|chatroulette|talk to strangers", UI_EXT)
             if anon:
                 self.add("X-ANON-CHAT", "both", "CRITICAL", ["Apple 1.2 (2026-02-06)", "Play Families + Child Endangerment (2026-08-26)"],
-                         "Anonymous or random chat. Apple may remove it without notice, Play forbids targeting children and applies Child Safety Standards",
+                         "Anonymous or random chat. If it is the main purpose Apple removes the app regardless of moderation. Play forbids targeting children and applies Child Safety Standards",
                          anon)
 
         ai_calls = g(r"api\.openai\.com|generativelanguage\.googleapis\.com|aiplatform\.googleapis\.com|api\.anthropic\.com|openrouter\.ai|api\.groq\.com|api\.deepseek\.com|api\.mistral\.ai|api\.replicate\.com|fal\.run|api\.stability\.ai|api\.elevenlabs\.io|api\.suno|api\.udio|speech\.googleapis\.com|texttospeech\.googleapis\.com|vision\.googleapis\.com|api\.assemblyai\.com|api\.deepgram\.com|api\.cohere\.|api-inference\.huggingface\.co|router\.huggingface\.co|api\.together\.xyz|api\.fireworks\.ai|api\.x\.ai|api\.perplexity\.ai|api\.audd\.io|acrcloud\.com|FirebaseAI\.|GenerativeModel\(|ChatOpenAI\(|new OpenAI\(", CODE_EXT)
@@ -868,6 +958,72 @@ class Scan:
             self.add("X-ADS-PRESENT", "both", "SUGGESTION", ["Apple 2.5.18", "Play Ads policy", "Play Families Ads"],
                      "Ads linked. Keep them in the main binary, never hide the close button, let users report ads, declare ad data in both privacy forms",
                      self.cat["ads"])
+
+        self.age_and_store_action_checks()
+
+    def age_and_store_action_checks(self):
+        """Age assurance, age-rating inputs, loot boxes, review prompts, Sign in with Apple relay domain."""
+        g = self.grep
+        dating = g(r"\bdating\b|\bflört|soulmate|ruh eşi|swipe right|ai (girl|boy)friend|virtual (girl|boy)friend|romantic companion", UI_EXT, limit=3)
+        sharing = (g(r"shareLocation|share_location|liveLocation|LocationSharing|locationSharing|konum(unu|umu)? paylaş|share (my|your) location|canlı konum", CODE_EXT | {".arb"}, limit=2)
+                   if self.cat["location"] else [])
+        loot = g(r"loot ?box|lootbox|gacha|mystery ?box|lucky ?(draw|spin)|spin the wheel|şans çarkı|sandık aç", UI_EXT, limit=3) if self.cat["iap"] else []
+        gamble = g(r"\b(casino|sportsbook|roulette|blackjack|slot machine|jackpot|bahis|iddaa|kumar)\b", UI_EXT, limit=2)
+        ugc = bool(self.facts.get("ugc"))
+
+        inputs = []
+        if loot:
+            inputs.append(f"Loot boxes → 9+ (AU 16+, BR 18+): {loot[0]}")
+        if ugc:
+            inputs.append("User-generated content or messaging → social media 13+ (AU 16+)")
+        if self.cat["webview"]:
+            inputs.append(f"Web view ({', '.join(self.cat['webview'])}) → 16+ if users can open any URL")
+        if gamble:
+            inputs.append(f"Gambling or simulated gambling → up to 18+: {gamble[0]}")
+        if dating:
+            inputs.append(f"Dating and Relationships → 18+ (asked from 2026-11-16, required by 2027-01-12): {dating[0]}")
+        if sharing:
+            inputs.append(f"Shared Location (asked from 2026-11-16, BR A16): {sharing[0]}")
+        if self.cat["health"]:
+            inputs.append("Medical or wellness information → up to 16+, and the medical device declaration")
+        if self.cat["ads"]:
+            inputs.append("Advertising capability")
+        self.facts["age_rating_inputs"] = inputs
+        if inputs:
+            self.add("X-AGE-RATING-INPUTS", "both", "SUGGESTION", ["App Store age rating questionnaire (2026)", "Play content rating (IARC)"],
+                     "Features that change the age-rating answers. Re-check the App Store questionnaire and the Play content rating", inputs)
+
+        if ugc or dating or gamble:
+            age_api = (g(r"AgeRangeService|requestAgeRange|DeclaredAgeRange|checkAgeSignals|AgeSignalsManager", CODE_EXT, limit=1)
+                       or [n for n in self.deps if re.search(r"age.?(range|signal)", n)]
+                       or ("declared-age-range" in "".join(read(p) for p in self.ios.glob("*/*.entitlements")) if self.ios.is_dir() else False))
+            if not age_api:
+                self.add("X-AGE-ASSURANCE", "both", "IMPORTANT" if (dating or gamble) else "SUGGESTION", ["Apple Declared Age Range (Texas, Utah, Louisiana, Brazil, Australia)", "Play Age Signals"],
+                         "Social, chat, dating or gambling features without the store age APIs. Where the law applies, Apple requires Declared Age Range even for 18+ apps",
+                         (dating or gamble or ["user-generated content or chat"])[:2])
+
+        if loot:
+            odds = g(r"\bodds\b|drop rate|probabilit|olasılık|ihtimal|şans oran", UI_EXT, limit=1)
+            self.add("X-LOOT-BOX", "both", "SUGGESTION" if odds else "IMPORTANT", ["Apple 3.1.1", "Play Real-Money Gambling, Games, and Contests"],
+                     "Paid randomized items. The odds of each item type must be shown before purchase" + (". Odds text found, confirm it is on the purchase screen" if odds else ". No odds disclosure found"),
+                     loot + odds)
+
+        ask = r"(rate us|rate the app|rate our app|review us|leave (us )?a review|write a review|bize puan ver|uygulamay[ıa] (puanla|değerlendir)|mağazada (puan|yorum))"
+        reward = g(ask + r"[^\n]{0,60}(coin|credit|reward|premium|ödül|jeton|kredi)|(coin|credit|reward|ödül|jeton|kredi)[^\n]{0,60}" + ask, UI_EXT, limit=2)
+        store_link = g(r"action=write-review|openStoreListing\(", CODE_EXT, limit=2)
+        system = g(r"requestReview\(|SKStoreReviewController|StoreReview\.", CODE_EXT, limit=1)
+        if reward:
+            self.add("X-CUSTOM-REVIEW-PROMPT", "both", "IMPORTANT", ["Apple 5.6.1", "Apple 3.2.2(x)", "Play Ratings and Reviews"],
+                     "Rewards tied to ratings or reviews. Both stores forbid incentivised reviews", reward)
+        elif store_link and not system:
+            self.add("X-CUSTOM-REVIEW-PROMPT", "both", "SUGGESTION", ["Apple 5.6.1"],
+                     "Links to the store review page without the system review API. Fine from a settings row, a rejection if it is a custom prompt or filters by sentiment",
+                     store_link)
+
+        relay = g(r"privaterelay\.appleid\.com", CODE_EXT, limit=2)
+        if relay and not g(r"private\.icloud\.com", CODE_EXT, limit=1):
+            self.add("X-SIWA-RELAY-DOMAIN", "ios", "IMPORTANT", ["Apple 4.8", "Apple 2.1"],
+                     "Code knows the old Sign in with Apple relay domain only. New relay addresses use private.icloud.com", relay)
 
     def l10n_key_used(self, hit):
         """For a hit inside a translation file, keep it only if its key is referenced in code."""

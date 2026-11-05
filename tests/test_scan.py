@@ -46,6 +46,8 @@ class FlutterFixture(unittest.TestCase):
             "X-IAP-RESTORE", "X-PLACEHOLDER", "X-PRIVACY-POLICY-LINK",
             "AND-16KB-PAGE", "AND-EDGE-TO-EDGE", "AND-PREDICTIVE-BACK", "AND-ORIENTATION-LOCK", "AND-MINIFY-OFF",
             "AND-RESTORE-CREDENTIALS", "AND-LEGACY-GSI", "AND-SIDELOAD-FLAVOR",
+            "IOS-DEPLOYMENT-TARGET", "IOS-XCODE-PINNED-OLD", "IOS-SDK-MANIFEST-RISK", "IOS-PRIVACY-MANIFEST-INVALID",
+            "IOS-ADS-IN-EXTENSION", "X-CUSTOM-REVIEW-PROMPT", "X-SIWA-RELAY-DOMAIN", "X-AGE-RATING-INPUTS",
         }
         self.assertTrue(expected <= ids(self.app), expected - ids(self.app))
 
