@@ -1,17 +1,19 @@
 ---
 name: store-compliance
 description: Audits mobile app repositories (Flutter, React Native/Expo, native iOS/Android) against the current Apple App Review Guidelines and Google Play Developer Policies, and reports each violation with evidence, the store risk and a concrete fix. Use when the user asks whether an app will pass App Store or Play review, wants a pre-submission or compliance audit, asks about new or changed review guidelines or policy deadlines, received a rejection, or wants to scan one or many mobile repos for store-policy risks (also in Turkish, e.g. "mağaza uyumu", "review guideline tarama", "reddedilme riski").
-argument-hint: "[path | owner/repo | dir-of-repos | all] [--lang tr|en]"
-allowed-tools: Read, Grep, Glob, Bash(python3 -I ~/.claude/skills/store-compliance/scripts/scan.py:*), Bash(python3 -I .claude/skills/store-compliance/scripts/scan.py:*), Bash(gh repo clone:*), Bash(git -C:*)
+license: MIT
+compatibility: Works with any agent that reads Agent Skills (SKILL.md). Needs python3 (3.8+). gh only for scanning a GitHub repo that is not cloned. Web access to check for newer store rules.
+allowed-tools: Read Grep Glob
 metadata:
-  version: 1.0.0
+  version: "1.0.0"
   rules-as-of: "2026-10-18"
-  license: MIT
 ---
 
 # store-compliance
 
-Arguments: **$ARGUMENTS**
+The input is the user's request, plus any arguments given when the skill is
+invoked by name (a path, `owner/repo`, a folder of repos or `all`, and
+`--lang`).
 
 Scan mobile repos for things that get an app rejected, removed or blocked from
 updating on the App Store and Google Play. Every finding must carry evidence
@@ -44,12 +46,13 @@ them several times a year.
 | a directory of repos, or `all` | `python3 -I <skill>/scripts/scan.py --find <dir…>` lists app dirs (linked git worktrees are skipped). Show the list and confirm before scanning more than 10 |
 
 Use a scratch directory for clones and JSON (the session scratchpad if the
-harness gives one, otherwise a temp dir). Never write into the audited repo.
+agent has one, otherwise a temp dir). Never write into the audited repo.
 
 ## 2. Run the scanner
 
-`<skill>` is the directory holding this file (usually `~/.claude/skills/store-compliance`,
-or `.claude/skills/store-compliance` inside a project).
+`<skill>` is the directory that holds this SKILL.md. Where it lives depends on
+the agent (for example `~/.claude/skills/store-compliance` or
+`~/.agents/skills/store-compliance`). Use the real path, not a guess.
 
 ```bash
 python3 -I <skill>/scripts/scan.py <repo> --json <scratch>/<repo>.json
@@ -131,9 +134,10 @@ numbers stay as the stores write them. Use `references/report-template.md`.
 ## 5. Many repos
 
 Scan each repo, then write one `store-compliance-summary-<date>.md` with a row
-per app (CRITICAL / IMPORTANT / SUGGESTION counts and the top issue). If you can
-spawn subagents, run steps 2–4 per repo in subagents, at most 3 at a time, and
-pass them this file's path so they follow the same rules.
+per app (CRITICAL / IMPORTANT / SUGGESTION counts and the top issue). If your
+agent can run subagents, run steps 2–4 per repo in subagents, at most 3 at a
+time, and pass them this file's path so they follow the same rules. Otherwise
+go through the repos one by one.
 
 ## 6. After the report
 
