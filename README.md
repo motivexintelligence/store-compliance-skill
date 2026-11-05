@@ -83,7 +83,7 @@ git clone https://github.com/motivexintelligence/store-compliance-skill.git ~/.a
 ```
 
 For a single project, use the project-level folder instead (`.claude/skills/`, `.agents/skills/`,
-`.github/skills/` and so on). Requirements: Python 3.8+. `gh` only for scanning a GitHub repo
+`.github/skills/` and so on). Requirements: Python 3.9+. `gh` only for scanning a GitHub repo
 you have not cloned.
 
 ## Use

@@ -11,7 +11,7 @@ of false positives.
   sources are fine as a pointer, but mark anything you could not confirm on an official page
   as unverified.
 - **The scanner stays small and safe.** Python standard library only, read-only, no network
-  access, no writes into the scanned repo. It must keep running on Python 3.8.
+  access, no writes into the scanned repo. It must keep running on Python 3.9.
 - **Leads, not verdicts.** The scanner finds candidates. The agent confirms them by reading
   the code. Prefer a check that misses a rare case over one that floods reports with false
   positives.

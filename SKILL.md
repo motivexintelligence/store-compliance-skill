@@ -2,7 +2,7 @@
 name: store-compliance
 description: Audits mobile app repositories (Flutter, React Native/Expo, native iOS/Android, HarmonyOS/ArkTS) against the current Apple App Review Guidelines, Google Play Developer Policies and Huawei AppGallery review rules, and reports each violation with evidence, the store risk and a concrete fix. Use when the user asks whether an app will pass App Store, Play or AppGallery review, wants a pre-submission or compliance audit, asks about new or changed review guidelines or policy deadlines, received a rejection, or wants to scan one or many mobile repos for store-policy risks (also in Turkish, e.g. "mağaza uyumu", "review guideline tarama", "reddedilme riski").
 license: MIT
-compatibility: Works with any agent that reads Agent Skills (SKILL.md). Needs python3 (3.8+). gh only for scanning a GitHub repo that is not cloned. Web access to check for newer store rules.
+compatibility: Works with any agent that reads Agent Skills (SKILL.md). Needs python3 (3.9+). gh only for scanning a GitHub repo that is not cloned. Web access to check for newer store rules.
 allowed-tools: Read Grep Glob
 metadata:
   version: "1.1.0"
